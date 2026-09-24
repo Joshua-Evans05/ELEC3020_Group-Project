@@ -141,41 +141,48 @@ void setup()
     pinMode(BIN2, OUTPUT);
     pinMode(PWMB, OUTPUT);
 
-    delay(2000); // change this
+    delay(2000);
+
 
     // forward
-
+  
     digitalWrite(AIN1, HIGH);
     digitalWrite(AIN2, LOW);
 
     digitalWrite(BIN1, HIGH);
     digitalWrite(BIN2, LOW);
 
-    analogWrite(PWMA, 255);
-    analogWrite(PWMB, 255);
+    analogWrite(PWMA, 100);
+    analogWrite(PWMB, 100);
 
-    delay(2000);
+    delay(5500);   // change this
 
-    // motor stop
+    // stop
     analogWrite(PWMA, 0);
     analogWrite(PWMB, 0);
 
-    delay(1000);
+    delay(2000);
 
+  
     // reverse
-
+  
     digitalWrite(AIN1, LOW);
     digitalWrite(AIN2, HIGH);
 
     digitalWrite(BIN1, LOW);
     digitalWrite(BIN2, HIGH);
 
-    analogWrite(PWMA, 255);
-    analogWrite(PWMB, 255);
+    analogWrite(PWMA, 103);
+    analogWrite(PWMB, 100);
 
-    delay(2000); // change this
+    delay(5575); // change this
 
-    // motor stop
+    // stop
     analogWrite(PWMA, 0);
     analogWrite(PWMB, 0);
+}
+
+void loop()
+{
+    // Do nothing after demonstration
 }
