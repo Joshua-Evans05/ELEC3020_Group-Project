@@ -1,4 +1,4 @@
-#include <Arduino.h>
+/* #include <Arduino.h>
 
 // Motor A Pins
 #define AIN1 18
@@ -63,7 +63,9 @@ void loop() {
   delay(1000);
 }
 
-/* #include <Arduino.h>
+
+
+ #include <Arduino.h>
 
 // Ultrasonic Sensor Pins (Top Header)
 #define TRIG_PIN 12
@@ -113,4 +115,67 @@ void loop() {
   }
 
   delay(100); // Sample every 100 milliseconds
+} */
+
+// THe new code below should be roughyl 1 metre
+
+#include <Arduino.h>
+
+// Motor A pins
+#define AIN1 18
+#define AIN2 43
+#define PWMA 17
+
+// Motor B pins
+#define BIN1 16
+#define BIN2 44
+#define PWMB 21
+
+void setup()
+{
+    pinMode(AIN1, OUTPUT);
+    pinMode(AIN2, OUTPUT);
+    pinMode(PWMA, OUTPUT);
+
+    pinMode(BIN1, OUTPUT);
+    pinMode(BIN2, OUTPUT);
+    pinMode(PWMB, OUTPUT);
+
+    delay(2000); // change this
+
+    // forward
+
+    digitalWrite(AIN1, HIGH);
+    digitalWrite(AIN2, LOW);
+
+    digitalWrite(BIN1, HIGH);
+    digitalWrite(BIN2, LOW);
+
+    analogWrite(PWMA, 255);
+    analogWrite(PWMB, 255);
+
+    delay(2000);
+
+    // motor stop
+    analogWrite(PWMA, 0);
+    analogWrite(PWMB, 0);
+
+    delay(1000);
+
+    // reverse
+
+    digitalWrite(AIN1, LOW);
+    digitalWrite(AIN2, HIGH);
+
+    digitalWrite(BIN1, LOW);
+    digitalWrite(BIN2, HIGH);
+
+    analogWrite(PWMA, 255);
+    analogWrite(PWMB, 255);
+
+    delay(2000); // change this
+
+    // motor stop
+    analogWrite(PWMA, 0);
+    analogWrite(PWMB, 0);
 }
