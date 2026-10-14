@@ -24,7 +24,7 @@ TFT_eSPI tft = TFT_eSPI();
 const float DETECT_DISTANCE = 80.0; // cm
 const float MIN_DISTANCE = 2.0;
 const int SEARCH_SPEED = 85;
-const int ATTACK_SPEED = 255;
+const int ATTACK_SPEED = 120;
 
 // US sensor reading function
 
