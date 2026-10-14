@@ -1,45 +1,46 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 
-#define AIN1 18
-#define AIN2 43
-#define PWMA 17
+// motors - Cytron MDD10A
+#define PWM1 44
+#define DIR1 43
 
-#define BIN1 16
-#define BIN2 44
-#define PWMB 21
+#define PWM2 17
+#define DIR2 18
 
-// US sensors
-
+// ultrasonic sensor
 #define TRIG_PIN 2
 #define ECHO_PIN 1
 
-// IR sensors
-
-#define LEFT_FRONT_SENSOR 3
-#define RIGHT_FRONT_SENSOR 4
-#define LEFT_REAR_SENSOR 5
-#define RIGHT_REAR_SENSOR 6
-
-// LED
-#define LED_PIN 11
+// infrared sensors
+#define LEFT_FRONT_SENSOR 11
+#define RIGHT_FRONT_SENSOR 12
+#define LEFT_REAR_SENSOR 10
+#define RIGHT_REAR_SENSOR 13
 
 TFT_eSPI tft = TFT_eSPI();
 
-const float DETECT_DISTANCE = 100.0;
 
-const int SEARCH_SPEED = 90;
-const int ATTACK_SPEED = 150;
-const int REVERSE_SPEED = 100;
-const int TURN_SPEED = 110;
-
-// Tune these
-const int REVERSE_DURATION = 500;
-const int FORWARD_ESCAPE_DURATION = 500;
-const int TURN_DURATION = 400;
+// ultrasonic distances
+const float DETECT_DISTANCE = 80.0;
+const float FULL_ATTACK_DISTANCE = 30.0;
+const float MIN_DISTANCE = 2.0;
 
 
-// US sensors
+// motor speeds
+const int SEARCH_SPEED = 100;
+const int NORMAL_SPEED = 180;
+const int FULL_SPEED = 255;
+
+
+// movement times
+const int REVERSE_TIME = 500;
+const int SIDE_TURN_TIME = 700;
+const int TURN_180_TIME = 900;
+const int REAR_ESCAPE_TIME = 500;
+
+
+// ultrasonic sensor
 
 float readDistanceCm()
 {
@@ -55,76 +56,66 @@ float readDistanceCm()
         pulseIn(ECHO_PIN, HIGH, 30000);
 
     if (duration == 0)
+    {
         return -1.0;
+    }
 
     return duration * 0.0343 / 2.0;
 }
 
-// Motor controls
+
+// motors
 
 void stopMotors()
 {
-    analogWrite(PWMA, 0);
-    analogWrite(PWMB, 0);
+    ledcWrite(0, 0);
+    ledcWrite(1, 0);
 }
 
 
 void driveForward(int speed)
 {
-    digitalWrite(AIN1, HIGH);
-    digitalWrite(AIN2, LOW);
+    digitalWrite(DIR1, LOW);
+    digitalWrite(DIR2, HIGH);
 
-    digitalWrite(BIN1, HIGH);
-    digitalWrite(BIN2, LOW);
-
-    analogWrite(PWMA, speed);
-    analogWrite(PWMB, speed);
+    ledcWrite(0, speed);
+    ledcWrite(1, speed);
 }
 
 
 void driveBackward(int speed)
 {
-    digitalWrite(AIN1, LOW);
-    digitalWrite(AIN2, HIGH);
+    digitalWrite(DIR1, HIGH);
+    digitalWrite(DIR2, LOW);
 
-    digitalWrite(BIN1, LOW);
-    digitalWrite(BIN2, HIGH);
-
-    analogWrite(PWMA, speed);
-    analogWrite(PWMB, speed);
-}
-
-
-void turnLeft(int speed)
-{
-    // Left wheel backward
-    digitalWrite(AIN1, LOW);
-    digitalWrite(AIN2, HIGH);
-
-    // Right wheel forward
-    digitalWrite(BIN1, HIGH);
-    digitalWrite(BIN2, LOW);
-
-    analogWrite(PWMA, speed);
-    analogWrite(PWMB, speed);
+    ledcWrite(0, speed);
+    ledcWrite(1, speed);
 }
 
 
 void turnRight(int speed)
 {
-    // Left wheel forward
-    digitalWrite(AIN1, HIGH);
-    digitalWrite(AIN2, LOW);
+    digitalWrite(DIR1, LOW);
+    digitalWrite(DIR2, LOW);
 
-    // Right wheel backward
-    digitalWrite(BIN1, LOW);
-    digitalWrite(BIN2, HIGH);
-
-    analogWrite(PWMA, speed);
-    analogWrite(PWMB, speed);
+    ledcWrite(0, speed);
+    ledcWrite(1, speed);
 }
 
-void showState(String state)
+
+void turnLeft(int speed)
+{
+    digitalWrite(DIR1, HIGH);
+    digitalWrite(DIR2, HIGH);
+
+    ledcWrite(0, speed);
+    ledcWrite(1, speed);
+}
+
+
+// display
+
+void showState(const char *state, float distance)
 {
     tft.fillScreen(TFT_BLACK);
 
@@ -134,178 +125,237 @@ void showState(String state)
     tft.drawString(
         state,
         tft.width() / 2,
-        tft.height() / 2,
+        tft.height() / 2 - 20,
         4
     );
+
+    if (distance > 0)
+    {
+        String distanceText =
+            String(distance, 1) + " cm";
+
+        tft.drawString(
+            distanceText,
+            tft.width() / 2,
+            tft.height() / 2 + 25,
+            4
+        );
+    }
 }
 
-void checkBoundary()
+
+// boundary detection
+
+bool checkBoundary()
 {
-    int frontLeft =
+    int leftFront =
         digitalRead(LEFT_FRONT_SENSOR);
 
-    int frontRight =
+    int rightFront =
         digitalRead(RIGHT_FRONT_SENSOR);
 
-    int rearLeft =
+    int leftRear =
         digitalRead(LEFT_REAR_SENSOR);
 
-    int rearRight =
+    int rightRear =
         digitalRead(RIGHT_REAR_SENSOR);
 
-    if (frontLeft == HIGH)
+
+    // both rear sensors detect black
+    if (leftRear == HIGH &&
+        rightRear == HIGH)
     {
-        showState("ESCAPE");
+        showState("REAR EDGE", -1);
 
-        driveBackward(REVERSE_SPEED);
-        delay(REVERSE_DURATION);
-
-        turnRight(TURN_SPEED);
-        delay(TURN_DURATION);
+        driveForward(FULL_SPEED);
+        delay(REAR_ESCAPE_TIME);
 
         stopMotors();
+        delay(100);
 
-        return;
+        return true;
     }
 
-    if (frontRight == HIGH)
+
+    // both front sensors detect black
+    if (leftFront == HIGH &&
+        rightFront == HIGH)
     {
-        showState("ESCAPE");
-
-        driveBackward(REVERSE_SPEED);
-        delay(REVERSE_DURATION);
-
-        turnLeft(TURN_SPEED);
-        delay(TURN_DURATION);
+        showState("FRONT EDGE", -1);
 
         stopMotors();
+        delay(100);
 
-        return;
-    }
-
-    if (frontLeft == HIGH &&
-        frontRight == HIGH)
-    {
-        showState("ESCAPE");
-
-        driveBackward(REVERSE_SPEED);
-
-        delay(REVERSE_DURATION);
-
-        turnRight(TURN_SPEED);
-
-        delay(TURN_DURATION);
+        driveBackward(NORMAL_SPEED);
+        delay(REVERSE_TIME);
 
         stopMotors();
+        delay(100);
 
-        return;
-    }
-
-    if (rearLeft == HIGH ||
-        rearRight == HIGH)
-    {
-        showState("ESCAPE");
-
-        driveForward(REVERSE_SPEED);
-
-        delay(FORWARD_ESCAPE_DURATION);
-
-        turnRight(TURN_SPEED);
-
-        delay(TURN_DURATION);
+        turnRight(NORMAL_SPEED);
+        delay(TURN_180_TIME);
 
         stopMotors();
+        delay(100);
 
-        return;
+        return true;
     }
+
+
+    // left side detects black
+    if (leftFront == HIGH)
+    {
+        showState("LEFT EDGE", -1);
+
+        // driveBackward(SEARCH_SPEED);
+        // delay(200);
+        turnLeft(NORMAL_SPEED);
+        delay(1500);
+        driveForward(SEARCH_SPEED);
+        delay(200);
+
+        stopMotors();
+        delay(100);
+
+        return true;
+    }
+
+    if (leftRear == HIGH)
+    {
+        showState("LEFT EDGE", -1);
+
+        // driveForward(SEARCH_SPEED);
+        // delay(200);
+        turnLeft(SEARCH_SPEED);
+        delay(900);
+        driveForward(SEARCH_SPEED);
+        delay(200);
+
+        stopMotors();
+        delay(100);
+
+        return true;
+    }
+
+    // right side detects black
+    if (rightFront == HIGH )
+    {
+        showState("RIGHT EDGE", -1);
+
+        // driveBackward(SEARCH_SPEED);
+        // delay(900);
+        turnRight(NORMAL_SPEED);
+        delay(500);
+        driveForward(SEARCH_SPEED);
+        delay(200);
+
+        stopMotors();
+        delay(100);
+
+        return true;
+    }
+
+    if (rightRear == HIGH )
+    {
+        showState("RIGHT EDGE", -1);
+
+        turnRight(SEARCH_SPEED);
+        delay(900);
+        driveForward(SEARCH_SPEED);
+        delay(200);
+
+        stopMotors();
+        delay(100);
+
+        return true;
+    }
+
+
+    return false;
 }
+
 
 void setup()
 {
-    // Motors
-    pinMode(AIN1, OUTPUT);
-    pinMode(AIN2, OUTPUT);
-    pinMode(PWMA, OUTPUT);
+    Serial.begin(115200);
 
-    pinMode(BIN1, OUTPUT);
-    pinMode(BIN2, OUTPUT);
-    pinMode(PWMB, OUTPUT);
+    // motor direction pins
+    pinMode(DIR1, OUTPUT);
+    pinMode(DIR2, OUTPUT);
 
-    // US
+    // PWM
+    ledcSetup(0, 5000, 8);
+    ledcAttachPin(PWM1, 0);
+
+    ledcSetup(1, 5000, 8);
+    ledcAttachPin(PWM2, 1);
+
+    // ultrasonic
     pinMode(TRIG_PIN, OUTPUT);
     pinMode(ECHO_PIN, INPUT);
 
-    // IR
+    // infrared sensors
     pinMode(LEFT_FRONT_SENSOR, INPUT);
     pinMode(RIGHT_FRONT_SENSOR, INPUT);
     pinMode(LEFT_REAR_SENSOR, INPUT);
     pinMode(RIGHT_REAR_SENSOR, INPUT);
 
-    // LED
-    pinMode(LED_PIN, OUTPUT);
-
-    // Displays the  power
+    // TTGO display
     pinMode(15, OUTPUT);
     digitalWrite(15, HIGH);
 
     tft.init();
     tft.setRotation(3);
-
     tft.fillScreen(TFT_BLACK);
 
-    showState("READY");
-
     stopMotors();
+
+    showState("READY", -1);
 
     delay(2000);
 }
 
+
 void loop()
 {
-    int frontLeft =
-        digitalRead(LEFT_FRONT_SENSOR);
-
-    int frontRight =
-        digitalRead(RIGHT_FRONT_SENSOR);
-
-    int rearLeft =
-        digitalRead(LEFT_REAR_SENSOR);
-
-    int rearRight =
-        digitalRead(RIGHT_REAR_SENSOR);
-
-
-    if (frontLeft == HIGH ||
-        frontRight == HIGH ||
-        rearLeft == HIGH ||
-        rearRight == HIGH)
+    // boundary detection always has highest priority
+    if (checkBoundary())
     {
-        checkBoundary();
-
         return;
     }
 
+
     float distance = readDistanceCm();
 
-    if (distance > 0 &&
-        distance < DETECT_DISTANCE)
+
+    // opponent very close - maximum power
+    if (distance >= MIN_DISTANCE &&
+        distance <= FULL_ATTACK_DISTANCE)
     {
-        digitalWrite(LED_PIN, HIGH);
+        showState("FULL ATTACK", distance);
 
-        showState("ATTACK");
-
-        driveForward(ATTACK_SPEED);
+        driveForward(FULL_SPEED);
     }
 
+
+    // opponent detected - normal attack
+    else if (distance > FULL_ATTACK_DISTANCE &&
+             distance <= DETECT_DISTANCE)
+    {
+        showState("ATTACK", distance);
+
+        driveForward(NORMAL_SPEED);
+    }
+
+
+    // no opponent - search
     else
     {
-        digitalWrite(LED_PIN, LOW);
-
-        showState("SEARCH");
+        showState("SEARCH", distance);
 
         turnRight(SEARCH_SPEED);
     }
 
 
-    delay(30);
+    delay(40);
 }
